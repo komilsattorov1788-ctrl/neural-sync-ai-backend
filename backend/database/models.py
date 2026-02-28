@@ -19,7 +19,9 @@ class TransactionLedger(Base):
     __tablename__ = 'transaction_ledger'
     
     tx_id = Column(String(36), primary_key=True)
-    user_id = Column(String(255), index=True, nullable=False)
+    # Citus Sharding Key: user_id MUST be part of the primary key or unique constraint
+    # to distribute data across multiple physical databases (Distributed Ledger).
+    user_id = Column(String(255), primary_key=True, index=True, nullable=False)
     intent = Column(String(50), nullable=False)
     cost = Column(Integer, nullable=False)
     state = Column(Enum(LedgerState), default=LedgerState.RESERVED, nullable=False)

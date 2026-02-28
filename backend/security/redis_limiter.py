@@ -38,10 +38,31 @@ class DummyRedis:
 logger = logging.getLogger("neural_sync.postgres_ledger")
 redis_fake_pool = None
 
+from redis.asyncio.cluster import RedisCluster
+from redis.asyncio import Redis
+
+# Use REDIS_CLUSTER_NODES=node1:6379,node2:6379,node3:6379 for Cluster mode.
+REDIS_CLUSTER_NODES = os.getenv("REDIS_CLUSTER_NODES")
+REDIS_URL = os.getenv("REDIS_URL")
+
 async def get_redis():
     global redis_fake_pool
     if redis_fake_pool is None:
-        redis_fake_pool = DummyRedis()
+        if REDIS_CLUSTER_NODES:
+            # 100k RPS Distributed Strategy: Redis Cluster
+            # Automatically discovers slots and routes hashes correctly across nodes
+            from redis.asyncio.cluster import ClusterNode
+            startup_nodes = [
+                ClusterNode(host=addr.split(":")[0], port=int(addr.split(":")[1]))
+                for addr in REDIS_CLUSTER_NODES.split(",")
+            ]
+            redis_fake_pool = RedisCluster(startup_nodes=startup_nodes, decode_responses=True)
+        elif REDIS_URL:
+            # Single master standalone mode fallback
+            redis_fake_pool = Redis.from_url(REDIS_URL, decode_responses=True)
+        else:
+            # Dummy mock for dev environment
+            redis_fake_pool = DummyRedis()
     return redis_fake_pool
 
 async def check_rate_limit(user_id: str, limit: int = 10, window: int = 60):
